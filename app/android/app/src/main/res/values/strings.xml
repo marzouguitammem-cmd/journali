@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">جورنالي</string>
+    <string name="title_activity_main">جورنالي</string>
+    <string name="package_name">com.tammem.journali</string>
+    <string name="custom_url_scheme">com.tammem.journali</string>
+</resources>

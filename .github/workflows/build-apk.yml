@@ -1,0 +1,77 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, ccr-551e6b8f-nmh4n0]
+    paths: [app/**, data/**, .github/workflows/build-apk.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+      APP_VERSION: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build web app
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      # إذا حطّيت السرّين ANDROID_KEYSTORE_B64 و ANDROID_KEYSTORE_PASSWORD في إعدادات المستودع، يتستعملو بدل المفتاح الموجود في المستودع
+      - name: Signing key from secrets (optional)
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/journali.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: journali-apk
+          path: journali.apk
+
+      # رابط ثابت للتحميل: https://github.com/<owner>/<repo>/releases/download/apk/journali.apk
+      - name: Publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk --yes --cleanup-tag || true
+          gh release create apk journali.apk --target "$GITHUB_SHA" --latest \
+            --title "جورنالي $VERSION_NAME" \
+            --notes "نسخة $VERSION_NAME — حمّل journali.apk وثبّتو فوق النسخة القديمة (مخططاتك وجورنالاتك يقعدو)."
