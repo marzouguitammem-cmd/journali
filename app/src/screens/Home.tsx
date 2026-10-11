@@ -38,7 +38,9 @@ export default function Home({ openJournal, goPlans }: { openJournal: (id: strin
   const [day, setDay] = useState(days[0] ?? 'السبت');
   const [date, setDate] = useState(() => nextDateForDay(days[0] ?? 'السبت'));
   const acts = useMemo(() => scheduleActs(data, day), [data, day]);
-  const suggested = useMemo(() => suggestLessons(data, acts), [data, acts]);
+  const existing = data.journals.find((j) => j.date === date);
+  // إذا عندك جورنال لنفس التاريخ، ما نحسبوهش في الاقتراح (باش يتعوّض)
+  const suggested = useMemo(() => suggestLessons(data, acts, existing?.id), [data, acts, existing?.id]);
   // لكل نشاط: الفترة + رقم الدرس (نصّ فارغ = فارغ)
   const [picks, setPicks] = useState<Record<string, { period: string; n: string }>>({});
   const pickKey = (i: number) => `${day}#${i}`;
@@ -54,7 +56,6 @@ export default function Home({ openJournal, goPlans }: { openJournal: (id: strin
     if (!p.n.trim()) return null;
     return slotLessons(data, acts[i].level, acts[i].subject).find((l) => l.period === p.period && l.n === +p.n) ?? null;
   };
-  const existing = data.journals.find((j) => j.date === date);
 
   const makeManual = () => {
     if (dayOf(date) !== day) { toast(`التاريخ ${fmtDate(date)} موش نهار ${day}.`, 'err'); return; }
